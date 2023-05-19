@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # nginx server image conf
+  nginx:
+    restart: always
+    build:
+      context: requirements/nginx
+      args:
+        - "DOMAIN_NAME=${DOMAIN_NAME}"
+    image: nginx:nginx
+    container_name: nginx
+    ports:
+      - "443:443"
+    depends_on:
+      - wordpress
+      - adminer
+      - portfolio
+      - portainer
+    networks:
+      - inception
+    volumes:
+      - wordpress:/var/www/html:rw
+  # wordpress image conf
+  wordpress:
+    restart: always
+    depends_on:
+      - mariadb
+      - redis
+    build: 
+      context: requirements/wordpress
+      args:
+        - "MYSQL_HOST=mariadb" #mariadb: container name of database
+        - "REDIS_HOST=redis" #redis: container name of cache
+        - "MYSQL_DB_NAME=${MYSQL_DB_NAME}"
+        - "MYSQL_USER=${MYSQL_USER}"
+        - "MYSQL_PASSWORD=${MYSQL_PASSWORD}"
+    image: wordpress:wordpress
+    container_name: wordpress
+    environment:
+      - "DOMAIN_NAME=${DOMAIN_NAME}"
+      - "WP_ADMIN=${WP_ADMIN}"
+      - "WP_ADMIN_PASS=${WP_ADMIN_PASS}"
+      - "WP_USER=${WP_USER}"
+      - "WP_USER_PASSWORD=${WP_USER_PASSWORD}"
+      - "TITLE=${TITLE}"
+    networks:
+      - inception
+    volumes:
+      - wordpress:/var/www/html:rw
+  # mariadb server image conf
+  mariadb:
+    restart: always
+    build: 
+      context: requirements/mariadb
+      args:
+        - "MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}"
+        - "MYSQL_DB_NAME=${MYSQL_DB_NAME}"
+        - "MYSQL_USER=${MYSQL_USER}"
+        - "MYSQL_PASSWORD=${MYSQL_PASSWORD}"
+    image: mariadb:mariadb
+    container_name: mariadb
+    networks:
+      - inception
+    volumes:
+      - mariadb:/var/lib/mysql:rw
+  # redis server image conf
+  redis:
+    restart: always
+    build: requirements/bonus/redis
+    image: redis:redis
+    container_name: redis
+    networks:
+      - inception
+  # adminer image conf
+  adminer:
+    restart: always
+    build: requirements/bonus/adminer
+    image: adminer:adminer
+    container_name: adminer
+    depends_on:
+      - mariadb
+    networks:
+      - inception
+  # ftp server image config
+  ftp:
+    restart: always
+    build:
+      context: requirements/bonus/ftp
+      args:
+        - "FTP_USER=${FTP_USER}"
+        - "FTP_PASSWORD=${FTP_PASSWORD}"
+        - "PASV_MIN_PORT=13370"
+        - "PASV_MAX_PORT=13379"
+        - "PASV_ADDRESS=10.12.177.127"
+    image: ftp:ftp
+    container_name: ftp
+    ports:
+      - "21:21"
+      - "13370-13379:13370-13379"
+    volumes:
+      - wordpress:/home/${FTP_USER}:rw
+    networks:
+      - inception
+  # portainer image config
+  portainer:
+    restart: always
+    build: requirements/bonus/portainer
+    image: portainer:portainer
+    container_name: portainer
+    networks:
+      - inception
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - portainer:/data:rw
+  # portfolio image config
+  portfolio:
+    restart: always
+    build: requirements/bonus/portfolio
+    image: portfolio:portfolio
+    container_name: portfolio
+    networks:
+      - inception
+
+# volumes
+volumes:
+  wordpress:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /home/jchakir/data/wordpress
+  mariadb:
+    driver: local
+    driver_opts:
+      type: bind
+      o: bind
+      device: /home/jchakir/data/database
+  portainer:
+
+# networks
+networks:
+  inception:
+    driver: bridge
